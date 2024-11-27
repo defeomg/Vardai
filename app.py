@@ -9,7 +9,7 @@ Original file is located at
 
 import streamlit as st
 import torch
-from NamesformeRokas import NameDataset, MinimalTransformer, sample_with_temperature  # Update this to the correct import path
+from namesformerokas import NameDataset, MinimalTransformer, sample_with_temperature  # Update this to the correct import path
 
 # 1. Load datasets
 male_dataset = NameDataset('male_names.txt')
