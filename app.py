@@ -9,7 +9,7 @@ Original file is located at
 
 import streamlit as st
 import torch
-from namesformerokas import NameDataset, MinimalTransformer, sample_with_temperature  # Update this to the correct import path
+from namesformerokas import NameDataset, MinimalTransformer, sample_with_temperature  # Adjust as needed
 
 # 1. Load datasets
 male_dataset = NameDataset('male_names.txt')
@@ -41,21 +41,45 @@ start_str = st.text_input(
     max_chars=5,
     help="Nurodykite vardo pradžios raides (1–5 simboliai)."
 )
+
 if len(start_str) > 5:
     st.error("Pradžios raidžių skaičius negali būti didesnis nei 5!")
 
-max_length = st.slider("Maksimalus vardo ilgis:", min_value=5, max_value=20, value=10)
-temperature = st.slider("Kūrybingumo lygis (temperatūra):", min_value=0.1, max_value=2.0, value=1.0)
-top_k = st.slider("Pasirinkti iš populiariausių variantų (top-k):", min_value=1, max_value=10, value=5)
+temperature = st.slider(
+    "Kūrybingumo lygis (temperatūra):",
+    min_value=0.1,
+    max_value=2.0,
+    value=1.0,
+    help="Mažesnė temperatūra suteikia tikslesnius rezultatus, didesnė – kūrybiškesnius."
+)
 
 # 6. Generate Names
 if st.button("Generuoti vardus"):
     if len(start_str) > 0:
         st.write(f"Sugeneruoti vardai, pradedant nuo: **{start_str}**")
-        for _ in range(10):
-            name = sample_with_temperature(
-                model, dataset, start_str=start_str, max_length=max_length, k=top_k, temperature=temperature
-            )
-            st.markdown(f"**{name}**")
+
+        try:
+            # Generate the most probable name
+            output = model(torch.tensor([[dataset.char_to_int[c] for c in start_str]]))
+            most_probable_char_idx = torch.argmax(output[0, -1]).item()
+            most_probable_name = start_str + dataset.int_to_char[most_probable_char_idx]
+            st.markdown(f"### Pagrindinis vardas: **{most_probable_name}**")
+
+            # Generate other similar names
+            st.markdown("#### Panašūs vardai:")
+            for _ in range(5):  # Generate 5 similar names
+                name = sample_with_temperature(
+                    model,
+                    dataset,
+                    start_str=start_str,
+                    max_length=10,  # You can set a fixed maximum length
+                    k=5,  # Use Top-k sampling with a fixed value
+                    temperature=temperature,
+                )
+                st.write(f"- {name}")
+
+        except Exception as e:
+            st.error(f"Klaida generuojant vardus: {e}")
     else:
         st.warning("Įveskite bent vieną raidę, kad sugeneruotumėte vardus.")
+
