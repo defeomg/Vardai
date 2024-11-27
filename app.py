@@ -9,7 +9,9 @@ Original file is located at
 
 import streamlit as st
 import torch
-from namesformerokas import NameDataset, MinimalTransformer, sample_with_temperature  # Adjust as needed
+from namesformerokas import NameDataset, MinimalTransformer, sample_with_temperature
+import random
+import numpy as np
 
 # 1. Load datasets
 male_dataset = NameDataset('male_names.txt')
@@ -26,6 +28,24 @@ female_model.eval()
 
 # 3. Streamlit UI
 st.set_page_config(page_title="Vardų Generatorius", layout="centered")
+st.markdown(
+    """
+    <style>
+    body {
+        background-color: #f9f9f9;
+        font-family: Arial, sans-serif;
+    }
+    h1, h2, h3 {
+        color: #004d99;
+    }
+    .highlight {
+        color: #ff5722;
+        font-weight: bold;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 st.title("🎉 Vardų Generatorius")
 st.write("Sukurkite unikalius vardus naudodami dirbtinio intelekto modelį!")
 
@@ -37,13 +57,20 @@ dataset = male_dataset if gender == "Vyriški vardai" else female_dataset
 # 5. Input Controls
 start_str = st.text_input(
     "Įveskite pradžios raides (iki 5):",
-    value="A",
+    value="",
     max_chars=5,
-    help="Nurodykite vardo pradžios raides (1–5 simboliai)."
+    help="Nurodykite vardo pradžios raides (1–5 simboliai). Jei laukelis tuščias, atsitiktinai sugeneruojamas vardas."
 )
 
-if len(start_str) > 5:
-    st.error("Pradžios raidžių skaičius negali būti didesnis nei 5!")
+# Example Starting Letters
+if st.button("Pavyzdys: 'Jon'"):
+    start_str = "Jon"
+if st.button("Pavyzdys: 'Ana'"):
+    start_str = "Ana"
+
+# Random Name Generation
+if len(start_str) == 0:
+    start_str = random.choice(dataset.chars)
 
 temperature = st.slider(
     "Kūrybingumo lygis (temperatūra):",
@@ -53,33 +80,63 @@ temperature = st.slider(
     help="Mažesnė temperatūra suteikia tikslesnius rezultatus, didesnė – kūrybiškesnius."
 )
 
-# 6. Generate Names
+# Favorites list
+st.markdown("### 🌟 Mėgstami vardai")
+favorites = st.session_state.get("favorites", [])  # Keep favorites across app reruns
+if "favorites" not in st.session_state:
+    st.session_state["favorites"] = []
+
+# Generate Names
 if st.button("Generuoti vardus"):
-    if len(start_str) > 0:
-        st.write(f"Sugeneruoti vardai, pradedant nuo: **{start_str}**")
+    st.write(f"Sugeneruoti vardai, pradedant nuo: **{start_str}**")
 
-        try:
-            # Generate the most probable name
-            output = model(torch.tensor([[dataset.char_to_int[c] for c in start_str]]))
-            most_probable_char_idx = torch.argmax(output[0, -1]).item()
-            most_probable_name = start_str + dataset.int_to_char[most_probable_char_idx]
-            st.markdown(f"### Pagrindinis vardas: **{most_probable_name}**")
+    try:
+        # Generate the most probable name
+        output = model(torch.tensor([[dataset.char_to_int[c] for c in start_str]]))
+        most_probable_char_idx = torch.argmax(output[0, -1]).item()
+        most_probable_name = start_str + dataset.int_to_char[most_probable_char_idx]
 
-            # Generate other similar names
-            st.markdown("#### Panašūs vardai:")
-            for _ in range(5):  # Generate 5 similar names
-                name = sample_with_temperature(
-                    model,
-                    dataset,
-                    start_str=start_str,
-                    max_length=10,  # You can set a fixed maximum length
-                    k=5,  # Use Top-k sampling with a fixed value
-                    temperature=temperature,
-                )
-                st.write(f"- {name}")
+        st.markdown(f"### Pagrindinis vardas: <span class='highlight'>{most_probable_name}</span>", unsafe_allow_html=True)
 
-        except Exception as e:
-            st.error(f"Klaida generuojant vardus: {e}")
+        # Save to favorites
+        if st.button(f"⭐ Pridėti į mėgstamus: {most_probable_name}"):
+            st.session_state["favorites"].append(most_probable_name)
+
+        # Generate other similar names
+        st.markdown("#### Panašūs vardai:")
+        generated_names = []
+        for _ in range(5):  # Generate 5 similar names
+            name = sample_with_temperature(
+                model,
+                dataset,
+                start_str=start_str,
+                max_length=10,  # Fixed length
+                k=5,  # Fixed Top-k
+                temperature=temperature,
+            )
+            generated_names.append(name)
+            if st.button(f"⭐ Pridėti į mėgstamus: {name}"):
+                st.session_state["favorites"].append(name)
+            st.write(f"- {name}")
+
+        # Display Name Statistics
+        st.markdown("### 📊 Vardų statistika")
+        st.write(f"Vidutinis ilgis: {np.mean([len(name) for name in generated_names]):.2f} simboliai")
+        st.write(f"Unikalių vardų skaičius: {len(set(generated_names))}")
+
+    except Exception as e:
+        st.error(f"Klaida generuojant vardus: {e}")
+
+# Display favorites
+if favorites:
+    st.markdown("#### Išsaugoti mėgstami vardai:")
+    for favorite in favorites:
+        st.write(f"- {favorite}")
+    # Download favorites
+    if st.button("Atsisiųsti mėgstamus vardus"):
+        favorites_text = "\n".join(favorites)
+        st.download_button("Atsisiųsti", favorites_text, "favorites.txt", "text/plain")
+
     else:
         st.warning("Įveskite bent vieną raidę, kad sugeneruotumėte vardus.")
 
