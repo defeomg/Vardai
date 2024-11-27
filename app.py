@@ -59,15 +59,9 @@ if st.button("Generuoti vardus"):
     st.write(f"Sugeneruoti vardai, pradedant nuo: **{start_str}**")
 
     try:
-        # Generate the most probable name
-        output = model(torch.tensor([[dataset.char_to_int[c] for c in start_str]]))
-        most_probable_char_idx = torch.argmax(output[0, -1]).item()
-        most_probable_name = start_str + dataset.int_to_char[most_probable_char_idx]
-        st.markdown(f"### Pagrindinis vardas: **{most_probable_name}**")
-
-        # Generate other similar names
-        st.markdown("#### Panašūs vardai:")
-        for _ in range(5):  # Generate 5 similar names
+        # Generate 5 names
+        st.markdown("### Sugeneruoti vardai:")
+        for _ in range(5):
             name = sample_with_temperature(
                 model,
                 dataset,
@@ -80,5 +74,6 @@ if st.button("Generuoti vardus"):
 
     except Exception as e:
         st.error(f"Klaida generuojant vardus: {e}")
+
 
 
